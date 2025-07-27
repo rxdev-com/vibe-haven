@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,10 +21,22 @@ export default function EmailVerification({
   onVerified,
 }: EmailVerificationProps) {
   const { user, verifyEmail, resendEmailVerification, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [verificationCode, setVerificationCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [verificationStatus, setVerificationStatus] = useState<null | 'success' | 'error' | 'expired'>(null);
+
+  useEffect(() => {
+    // Check for token in URL on component mount
+    const token = searchParams.get('token');
+    if (token) {
+      setVerificationCode(token);
+      handleVerifyEmail(token);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -32,18 +45,36 @@ export default function EmailVerification({
     }
   }, [countdown]);
 
-  const handleVerifyEmail = async () => {
-    if (!verificationCode.trim()) return;
+  const handleVerifyEmail = async (token = verificationCode) => {
+    if (!token.trim()) return;
 
     setIsVerifying(true);
-    const success = await verifyEmail(verificationCode);
+    setVerificationStatus(null);
+    
+    try {
+      const success = await verifyEmail(token);
 
-    if (success) {
-      setVerificationCode("");
-      onVerified?.();
+      if (success) {
+        setVerificationStatus('success');
+        setVerificationCode("");
+        onVerified?.();
+        // Redirect after a short delay to show success message
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2000);
+      } else {
+        setVerificationStatus('error');
+      }
+    } catch (error: any) {
+      console.error('Verification error:', error);
+      if (error.message?.includes('expired')) {
+        setVerificationStatus('expired');
+      } else {
+        setVerificationStatus('error');
+      }
+    } finally {
+      setIsVerifying(false);
     }
-
-    setIsVerifying(false);
   };
 
   const handleResendCode = async () => {
@@ -58,17 +89,27 @@ export default function EmailVerification({
   };
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
-    setVerificationCode(value);
+    setVerificationCode(e.target.value);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && verificationCode.length === 6) {
+    if (e.key === "Enter" && verificationCode) {
       handleVerifyEmail();
     }
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Please log in to verify your email.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-emerald-50 flex items-center justify-center p-4">
@@ -93,82 +134,90 @@ export default function EmailVerification({
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="verification-code"
-                className="block text-sm font-medium text-gray-700 mb-2"
+          {verificationStatus === 'success' ? (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                Email verified successfully! Redirecting you to your dashboard...
+              </AlertDescription>
+            </Alert>
+          ) : verificationStatus === 'expired' ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                This verification link has expired. Please request a new one.
+              </AlertDescription>
+            </Alert>
+          ) : verificationStatus === 'error' ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Invalid verification token. Please check the link or request a new one.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="verification-code"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Verification Token
+                </label>
+                <Input
+                  id="verification-code"
+                  type="text"
+                  value={verificationCode}
+                  onChange={handleCodeChange}
+                  onKeyDown={handleKeyPress}
+                  placeholder="Paste your verification token here"
+                  disabled={isVerifying}
+                  className="text-base h-12"
+                />
+              </div>
+              <Button
+                onClick={() => handleVerifyEmail()}
+                disabled={!verificationCode || isVerifying}
+                className="w-full bg-gradient-to-r from-saffron-500 to-orange-500 hover:from-saffron-600 hover:to-orange-600"
               >
-                Enter 6-digit verification code
-              </label>
-              <Input
-                id="verification-code"
-                type="text"
-                placeholder="123456"
-                value={verificationCode}
-                onChange={handleCodeChange}
-                onKeyPress={handleKeyPress}
-                className="text-center text-xl tracking-widest font-mono"
-                maxLength={6}
-                disabled={isVerifying}
-              />
-              <p className="text-xs text-gray-500 mt-1 text-center">
-                Enter the 6-digit code sent to your email
-              </p>
+                {isVerifying ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Verify Email
+                  </>
+                )}
+              </Button>
+
+              <div className="text-center space-y-3 pt-4 border-t border-gray-200 mt-4">
+                <p className="text-sm text-gray-600">Didn't receive the code?</p>
+                <Button
+                  variant="outline"
+                  onClick={handleResendCode}
+                  disabled={isResending || countdown > 0}
+                  className="w-full"
+                >
+                  {isResending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : countdown > 0 ? (
+                    `Resend in ${countdown}s`
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4 mr-2" />
+                      Resend Code
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-
-            <Button
-              onClick={handleVerifyEmail}
-              disabled={verificationCode.length !== 6 || isVerifying}
-              className="w-full bg-gradient-to-r from-saffron-500 to-orange-500 hover:from-saffron-600 hover:to-orange-600"
-            >
-              {isVerifying ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Verify Email
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="text-center space-y-3">
-            <p className="text-sm text-gray-600">Didn't receive the code?</p>
-
-            <Button
-              variant="outline"
-              onClick={handleResendCode}
-              disabled={isResending || countdown > 0}
-              className="w-full"
-            >
-              {isResending ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : countdown > 0 ? (
-                `Resend in ${countdown}s`
-              ) : (
-                <>
-                  <Mail className="w-4 h-4 mr-2" />
-                  Resend Code
-                </>
-              )}
-            </Button>
-
-            <div className="pt-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                For demo purposes, enter any 6-digit number to verify
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Example: 123456 or 999999
-              </p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

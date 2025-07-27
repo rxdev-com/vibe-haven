@@ -12,7 +12,9 @@ export interface IUser extends Document {
   address?: string;
   profileImage?: string;
   emailVerified: boolean;
-  emailVerificationSentAt?: Date;
+  emailVerificationSentAt: Date;
+  verificationOTP: string;
+  verificationOTPExpires: Date;
   deliverySettings?: {
     areas: string[];
     minOrder: number;
@@ -25,10 +27,10 @@ export interface IUser extends Document {
     established?: Date;
     description?: string;
   };
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
+  // coordinates?: {
+  //   lat: number;
+  //   lng: number;
+  // };
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -84,6 +86,12 @@ const userSchema = new Schema<IUser>({
   emailVerificationSentAt: {
     type: Date,
   },
+  verificationOTP: {
+    type: String,
+  },
+  verificationOTPExpires: {
+    type: Date,
+  },
   deliverySettings: {
     areas: [String],
     minOrder: { type: Number, default: 0 },
@@ -96,10 +104,10 @@ const userSchema = new Schema<IUser>({
     established: Date,
     description: String,
   },
-  coordinates: {
-    lat: Number,
-    lng: Number,
-  },
+  // coordinates: {
+  //   lat: { type: Number, required: false },
+  //   lng: { type: Number, required: false },
+  // },
   isActive: {
     type: Boolean,
     default: true,

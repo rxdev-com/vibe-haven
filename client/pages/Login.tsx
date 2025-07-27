@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,12 +17,16 @@ import { ShoppingCart, Store, ArrowLeft } from "lucide-react";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { login, isAuthenticated, isLoading } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Redirect if already logged in
   if (isAuthenticated) {
-    const from = location.state?.from?.pathname || "/vendor/dashboard";
+    const from = location.state?.from?.pathname || 
+                (user?.role === 'vendor' ? 
+                  "/vendor/dashboard" : 
+                  "/supplier/dashboard");
     return <Navigate to={from} replace />;
   }
 
@@ -33,9 +37,9 @@ export default function Login() {
 
     const success = await login(email, password, role);
     if (success) {
-      const redirectPath =
-        role === "vendor" ? "/vendor/dashboard" : "/supplier/dashboard";
-      window.location.href = redirectPath;
+      // The login function in AuthContext already handles the login state
+      // No need for additional navigation here as the component will re-render
+      // and the isAuthenticated check will handle the redirect
     }
   };
 

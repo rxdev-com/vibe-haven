@@ -41,10 +41,14 @@ export default function ProtectedRoute({
 
   // Check role-specific access
   if (requiredRole && user?.role !== requiredRole) {
-    // Redirect to appropriate dashboard if user has wrong role
-    const redirectPath =
-      user?.role === "vendor" ? "/vendor/dashboard" : "/supplier/dashboard";
-    return <Navigate to={redirectPath} replace />;
+    // If user is trying to access a role-specific route but has a different role,
+    // redirect them to their appropriate dashboard
+    const redirectPath = user?.role === "vendor" ? "/vendor/dashboard" : "/supplier/dashboard";
+    
+    // Only redirect if they're not already on their dashboard
+    if (location.pathname !== redirectPath) {
+      return <Navigate to={redirectPath} replace />;
+    }
   }
 
   // Check if email verification is required
